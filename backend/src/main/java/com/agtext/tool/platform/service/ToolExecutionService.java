@@ -14,6 +14,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Service;
 
+/**
+ * 工具执行引擎服务
+ * 负责工具执行的全生命周期管理：校验、确认、执行、超时控制、审计
+ */
 @Service
 public class ToolExecutionService {
   private static final String CONF_PREFIX = "cnf_";
@@ -27,13 +31,13 @@ public class ToolExecutionService {
   private final ModelService models;
 
   public ToolExecutionService(
-      ToolRegistry registry,
-      ConfirmationService confirmations,
-      ExecutionRecordService executions,
-      ToolSecurityProperties security,
-      AppSettingsService appSettings,
-      HttpClient http,
-      ModelService models) {
+          ToolRegistry registry,
+          ConfirmationService confirmations,
+          ExecutionRecordService executions,
+          ToolSecurityProperties security,
+          AppSettingsService appSettings,
+          HttpClient http,
+          ModelService models) {
     this.registry = registry;
     this.confirmations = confirmations;
     this.executions = executions;
@@ -43,28 +47,37 @@ public class ToolExecutionService {
     this.models = models;
   }
 
+  /**
+   * 执行工具请求的主入口
+   */
   public ExecuteResult execute(String actor, ExecuteRequest req) {
     if (req == null || req.toolName() == null || req.toolName().isBlank()) {
       throw new IllegalArgumentException("toolName is required");
     }
 
+    // 1. 工具查找与元数据获取
     ToolHandler handler =
-        registry
-            .find(req.toolName())
-            .orElseThrow(() -> new NotFoundException("TOOL_NOT_FOUND", "Tool not found"));
+            registry
+                    .find(req.toolName())
+                    .orElseThrow(() -> new NotFoundException("TOOL_NOT_FOUND", "Tool not found"));
     ToolDefinition def = handler.definition();
 
+    // 2. 动态开关检查：允许通过应用设置临时禁用特定工具
     if (!isToolEnabled(def.name())) {
       return ExecuteResult.failed("TOOL_DISABLED", "Tool disabled: " + def.name());
     }
 
+    // 3. 二次确认（Confirmation）逻辑拦截
     if (def.requiresConfirmation()) {
+      // 场景 A: 请求中未包含确认单 ID -> 自动创建“待处理”确认单并告知前端
       if (req.confirmationId() == null || req.confirmationId().isBlank()) {
         String summary = "Tool execute: " + def.name();
         String payload = req.input() == null ? null : req.input().toString();
         var item = confirmations.create(null, "tool.execute", "tool", def.name(), summary, payload);
         return ExecuteResult.confirmationRequired(IdCodec.encode(CONF_PREFIX, item.id()));
       }
+
+      // 场景 B: 已有确认单 ID -> 校验状态是否为 approved（已批准）
       long rawId = IdCodec.decode(CONF_PREFIX, req.confirmationId());
       var item = confirmations.get(rawId);
       if (!"approved".equalsIgnoreCase(item.status())) {
@@ -72,61 +85,70 @@ public class ToolExecutionService {
       }
     }
 
+    // 4. 执行阶段：使用 CompletableFuture 实现异步超时控制
     long start = System.currentTimeMillis();
     try {
-      ToolSecurityProperties sec = buildSecurity();
+      ToolSecurityProperties sec = buildSecurity(); // 获取最新的安全白名单配置
       ToolResult r =
-          CompletableFuture.supplyAsync(
-                  () -> {
-                    try {
-                      return handler.execute(new ToolContext(http, models, sec), req.input());
-                    } catch (Exception e) {
-                      throw new RuntimeException(e);
-                    }
-                  })
-              .orTimeout(def.timeoutMs(), TimeUnit.MILLISECONDS)
-              .join();
+              CompletableFuture.supplyAsync(
+                              () -> {
+                                try {
+                                  // 将基础设施上下文及输入参数分发给具体的 ToolHandler
+                                  return handler.execute(new ToolContext(http, models, sec), req.input());
+                                } catch (Exception e) {
+                                  throw new RuntimeException(e);
+                                }
+                              })
+                      // 强制超时控制：防止某些工具逻辑死循环导致系统线程池枯竭
+                      .orTimeout(def.timeoutMs(), TimeUnit.MILLISECONDS)
+                      .join();
 
+      // 5. 执行成功：记录审计日志并返回结果
       executions.record(
-          actor == null ? "user" : actor,
-          "tool",
-          "tool.execute." + def.name(),
-          "tool",
-          def.name(),
-          null,
-          req.input() == null ? null : req.input().toString(),
-          r.summary(),
-          "succeeded",
-          null,
-          System.currentTimeMillis() - start);
+              actor == null ? "user" : actor,
+              "tool",
+              "tool.execute." + def.name(),
+              "tool",
+              def.name(),
+              null,
+              req.input() == null ? null : req.input().toString(),
+              r.summary(),
+              "succeeded",
+              null,
+              System.currentTimeMillis() - start);
       return ExecuteResult.succeeded(r.summary(), r.data());
+
     } catch (RuntimeException e) {
+      // 6. 异常处理：区分超时异常与其他运行时异常，并记录失败审计
       String code = errorCode(e);
       executions.record(
-          actor == null ? "user" : actor,
-          "tool",
-          "tool.execute." + def.name(),
-          "tool",
-          def.name(),
-          null,
-          req.input() == null ? null : req.input().toString(),
-          null,
-          "failed",
-          code,
-          System.currentTimeMillis() - start);
+              actor == null ? "user" : actor,
+              "tool",
+              "tool.execute." + def.name(),
+              "tool",
+              def.name(),
+              null,
+              req.input() == null ? null : req.input().toString(),
+              null,
+              "failed",
+              code,
+              System.currentTimeMillis() - start);
       return ExecuteResult.failed(code, safeMessage(e));
     }
   }
 
+  // --- 内部封装的对象结构 ---
+
   public record ExecuteRequest(String toolName, JsonNode input, String confirmationId) {}
 
   public record ExecuteResult(
-      String status,
-      String confirmationId,
-      String summary,
-      String errorCode,
-      String errorMessage,
-      JsonNode data) {
+          String status,            // 执行状态：succeeded, failed, confirmation_required
+          String confirmationId,    // 当状态为需确认时，返回生成的确认单 ID
+          String summary,           // 执行结果摘要
+          String errorCode,         // 错误代码
+          String errorMessage,      // 友好错误提示
+          JsonNode data) {          // 结构化返回数据
+
     public static ExecuteResult succeeded(String summary, JsonNode data) {
       return new ExecuteResult("succeeded", null, summary, null, null, data);
     }
@@ -140,6 +162,9 @@ public class ToolExecutionService {
     }
   }
 
+  /**
+   * 异常解包逻辑：提取 CompletableFuture 包装下的原始异常
+   */
   private static String errorCode(RuntimeException e) {
     Throwable t = unwrap(e);
     if (t instanceof java.util.concurrent.TimeoutException) {
@@ -148,6 +173,9 @@ public class ToolExecutionService {
     return t.getClass().getSimpleName();
   }
 
+  /**
+   * 安全的消息提取：截断过长的错误信息以适配数据库存储
+   */
   private static String safeMessage(RuntimeException e) {
     Throwable t = unwrap(e);
     String msg = t.getMessage();
@@ -163,7 +191,7 @@ public class ToolExecutionService {
   private static Throwable unwrap(RuntimeException e) {
     Throwable t = e;
     while (t.getCause() != null
-        && (t instanceof java.util.concurrent.CompletionException
+            && (t instanceof java.util.concurrent.CompletionException
             || t instanceof RuntimeException)) {
       if (t.getCause() == t) {
         break;
@@ -179,7 +207,7 @@ public class ToolExecutionService {
 
   private ToolSecurityProperties buildSecurity() {
     var list =
-        appSettings.getStringListJson("tool.domainAllowlist").orElse(security.domainAllowlist());
+            appSettings.getStringListJson("tool.domainAllowlist").orElse(security.domainAllowlist());
     return new ToolSecurityProperties(list);
   }
 }
