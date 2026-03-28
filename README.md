@@ -69,7 +69,3 @@ node scripts/e2e-smoke.mjs
 - Tasks：Inbox/Today 管理 → 设置提醒/稍后提醒/关闭提醒
 - Settings：工具开关、domain allowlist、模型默认 provider 与覆盖
 
-## 文档
-
-- 测试与验收：`docs/测试与验收.md`
-- 遗留问题：`docs/遗留问题清单.md`
