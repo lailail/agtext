@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+set -e
+
+MVNW_REPOURL_DEFAULT="https://repo.maven.apache.org/maven2"
+MVNW_VERBOSE="${MVNW_VERBOSE:-false}"
+MVNW_USERNAME="${MVNW_USERNAME:-}"
+MVNW_PASSWORD="${MVNW_PASSWORD:-}"
+MVNW_REPOURL="${MVNW_REPOURL:-$MVNW_REPOURL_DEFAULT}"
+
+BASE_DIR=$(cd "$(dirname "$0")"; pwd -P)
+WRAPPER_DIR="$BASE_DIR/.mvn/wrapper"
+JAR="$WRAPPER_DIR/maven-wrapper.jar"
+PROPS="$WRAPPER_DIR/maven-wrapper.properties"
+
+if [ ! -f "$JAR" ]; then
+  mkdir -p "$WRAPPER_DIR"
+  if [ ! -f "$PROPS" ]; then
+    cat > "$PROPS" <<EOF
+distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip
+wrapperUrl=https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar
+EOF
+  fi
+  WRAPPER_URL=$(grep -E "^wrapperUrl=" "$PROPS" | cut -d= -f2-)
+  if [ "$MVNW_VERBOSE" = "true" ]; then
+    echo "Downloading Maven Wrapper from $WRAPPER_URL"
+  fi
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$JAR" "$WRAPPER_URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$JAR" "$WRAPPER_URL"
+  else
+    echo "Error: curl or wget is required to download Maven Wrapper." >&2
+    exit 1
+  fi
+fi
+
+exec java -jar "$JAR" -Dmaven.multiModuleProjectDirectory="$BASE_DIR" "$@"
+

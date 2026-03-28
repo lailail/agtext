@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:agtext_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+app:
+  model:
+    default-provider: mock
+    providers: {}
+  embedding:
+    default-provider: mock
+    default-model: mock-embedding
+    providers: {}
+  memory:
+    extraction-enabled: false
+    max-approved-memories-in-prompt: 10
+    max-candidates-per-turn: 3
+    extraction-provider:
+    extraction-model:
+  task:
+    context:
+      enabled: false
+      max-tasks-in-prompt: 10
+    reminder:
+      enabled: false
+      max-batch-size: 50
+      fixed-delay-ms: 5000

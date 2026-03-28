@@ -1,0 +1,101 @@
+server:
+  port: ${BACKEND_PORT:8080}
+
+spring:
+  application:
+    name: agtext
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:agtext}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+  flyway:
+    baseline-on-migrate: true
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{requestId}] %logger{36} - %msg%n"
+
+app:
+  storage:
+    root: ${FILE_STORAGE_ROOT:./data}
+  chat:
+    system-prompt: ${CHAT_SYSTEM_PROMPT:你是一个严谨的个人助理。请用中文回答，必要时给出要点列表。}
+    max-history-messages: ${CHAT_MAX_HISTORY_MESSAGES:20}
+  model:
+    default-provider: ${MODEL_DEFAULT_PROVIDER:${MODEL_PROVIDER:openai}}
+    fallback-model: ${MODEL_FALLBACK_NAME:${MODEL_NAME:gpt-5.1}}
+    providers:
+      openai:
+        base-url: ${OPENAI_BASE_URL:${MODEL_BASE_URL:https://api.openai.com}}
+        api-key: ${OPENAI_API_KEY:${MODEL_API_KEY:plan-5dc3426c1f8341149f7bf17d6d7d18d1}}
+        model: ${OPENAI_MODEL:${MODEL_NAME:gpt-5.1}}
+      qwen:
+        base-url: ${QWEN_BASE_URL:}
+        api-key: ${QWEN_API_KEY:}
+        model: ${QWEN_MODEL:}
+      zhipu:
+        base-url: ${ZHIPU_BASE_URL:}
+        api-key: ${ZHIPU_API_KEY:}
+        model: ${ZHIPU_MODEL:}
+      ernie:
+        base-url: ${ERNIE_BASE_URL:}
+        api-key: ${ERNIE_API_KEY:}
+        model: ${ERNIE_MODEL:}
+      hunyuan:
+        base-url: ${HUNYUAN_BASE_URL:}
+        api-key: ${HUNYUAN_API_KEY:}
+        model: ${HUNYUAN_MODEL:}
+  embedding:
+    default-provider: ${EMBEDDING_DEFAULT_PROVIDER:openai}
+    default-model: ${EMBEDDING_DEFAULT_MODEL:text-embedding-3-small}
+    providers:
+      openai:
+        base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+        api-key: ${OPENAI_API_KEY:}
+        model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      qwen:
+        base-url: ${QWEN_BASE_URL:}
+        api-key: ${QWEN_API_KEY:}
+        model: ${QWEN_EMBEDDING_MODEL:}
+      zhipu:
+        base-url: ${ZHIPU_BASE_URL:}
+        api-key: ${ZHIPU_API_KEY:}
+        model: ${ZHIPU_EMBEDDING_MODEL:}
+      ernie:
+        base-url: ${ERNIE_BASE_URL:}
+        api-key: ${ERNIE_API_KEY:}
+        model: ${ERNIE_EMBEDDING_MODEL:}
+      hunyuan:
+        base-url: ${HUNYUAN_BASE_URL:}
+        api-key: ${HUNYUAN_API_KEY:}
+        model: ${HUNYUAN_EMBEDDING_MODEL:}
+
+  memory:
+    extraction-enabled: ${MEMORY_EXTRACTION_ENABLED:true}
+    max-approved-memories-in-prompt: ${MEMORY_MAX_APPROVED_IN_PROMPT:50}
+    max-candidates-per-turn: ${MEMORY_MAX_CANDIDATES_PER_TURN:3}
+    extraction-provider: ${MEMORY_EXTRACTION_PROVIDER:}
+    extraction-model: ${MEMORY_EXTRACTION_MODEL:}
+
+  task:
+    context:
+      enabled: ${TASK_CONTEXT_ENABLED:true}
+      max-tasks-in-prompt: ${TASK_CONTEXT_MAX_TASKS_IN_PROMPT:10}
+    reminder:
+      enabled: ${TASK_REMINDER_ENABLED:true}
+      max-batch-size: ${TASK_REMINDER_MAX_BATCH_SIZE:50}
+      fixed-delay-ms: ${TASK_REMINDER_FIXED_DELAY_MS:5000}
+
+  tool:
+    security:
+      # 默认空=全放开（开发期），如需限制可配置例如：["zh.wikipedia.org","example.com"]
+      domain-allowlist: []

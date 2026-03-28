@@ -1,0 +1,15 @@
+# backend
+backend/target/
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# env
+.env
+infra/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
