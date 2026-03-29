@@ -6,6 +6,11 @@
   --muted: #a7adbb;
   --accent: #6ea8fe;
   --border: rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(120, 190, 255, 0.22);
+  --glass-border-strong: rgba(120, 190, 255, 0.35);
+  --glass-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  --glass-glow: 0 0 0 1px rgba(120, 190, 255, 0.1), 0 0 32px rgba(110, 168, 254, 0.18);
 }
 
 html,
@@ -91,15 +96,27 @@ body {
   padding: 8px 10px;
   cursor: pointer;
   font-size: 13px;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 220ms ease,
+    transform 180ms ease;
 }
 
 .btn:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(120, 190, 255, 0.28);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 22px rgba(110, 168, 254, 0.14);
+  transform: translateY(-1px);
 }
 
 .btn.primary {
   border-color: rgba(110, 168, 254, 0.35);
   background: rgba(110, 168, 254, 0.14);
+}
+
+.btn.primary:hover {
+  border-color: rgba(120, 190, 255, 0.45);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35), 0 0 28px rgba(110, 168, 254, 0.22);
 }
 
 .muted {
@@ -132,6 +149,18 @@ body {
   overflow: hidden;
 }
 
+.chatLeft {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
+.chatMain {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto auto;
+  min-height: 0;
+}
+
 .chatLeftHeader,
 .chatMainHeader {
   display: flex;
@@ -151,7 +180,7 @@ body {
   gap: 6px;
   padding: 10px;
   overflow: auto;
-  height: calc(100% - 52px);
+  min-height: 0;
 }
 
 .chatListItem {
@@ -212,7 +241,7 @@ body {
 .chatMessages {
   padding: 12px;
   overflow: auto;
-  height: calc(100% - 52px - 64px);
+  min-height: 0;
   display: grid;
   gap: 10px;
 }
@@ -365,6 +394,18 @@ body {
   overflow: hidden;
 }
 
+.knowledgeLeft {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
+.knowledgeMain {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+}
+
 .knowledgeLeftHeader,
 .knowledgeMainHeader {
   display: flex;
@@ -383,8 +424,8 @@ body {
   padding: 10px;
   display: grid;
   gap: 10px;
-  height: calc(100% - 52px);
   overflow: auto;
+  min-height: 0;
 }
 
 .knowledgeCreate {
@@ -443,7 +484,7 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   overflow: auto;
-  height: calc(100% - 52px);
+  min-height: 0;
 }
 
 .knowledgePanel {
@@ -962,7 +1003,27 @@ body {
   max-width: 980px;
 }
 
-.agentPanel,
+.agentBoard {
+  position: relative;
+  padding: 28px;
+  border-radius: 18px;
+  isolation: isolate;
+}
+
+.agentBoard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(900px 500px at 18% 12%, rgba(110, 168, 254, 0.18), transparent 55%),
+    radial-gradient(700px 420px at 78% 18%, rgba(120, 190, 255, 0.12), transparent 60%),
+    radial-gradient(900px 700px at 50% 80%, rgba(50, 80, 140, 0.18), transparent 65%),
+    linear-gradient(180deg, rgba(9, 12, 18, 0.55), rgba(9, 12, 18, 0.85));
+  pointer-events: none;
+  z-index: -1;
+}
+
 .settingsPanel {
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -972,23 +1033,56 @@ body {
   gap: 12px;
 }
 
+.agentPanel {
+  border-radius: 18px;
+  padding: 18px;
+  background: var(--glass-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--glass-shadow), var(--glass-glow);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: grid;
+  gap: 14px;
+  position: relative;
+}
+
+.agentPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(120, 190, 255, 0.35),
+    rgba(110, 168, 254, 0.1),
+    rgba(120, 190, 255, 0.22)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
 .agentGrid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
 .agentHint {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.01);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(120, 190, 255, 0.14);
 }
 
 .agentComposer {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 10px;
+  gap: 12px;
   align-items: start;
 }
 
@@ -999,6 +1093,20 @@ body {
   border-radius: 12px;
   padding: 10px 12px;
   outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 220ms ease,
+    background-color 180ms ease;
+}
+
+.agentComposer textarea:hover {
+  border-color: rgba(120, 190, 255, 0.24);
+  box-shadow: 0 0 0 1px rgba(120, 190, 255, 0.1), 0 0 24px rgba(110, 168, 254, 0.12);
+}
+
+.agentComposer textarea:focus {
+  border-color: rgba(120, 190, 255, 0.4);
+  box-shadow: 0 0 0 1px rgba(120, 190, 255, 0.16), 0 0 34px rgba(110, 168, 254, 0.2);
 }
 
 .agentOutput {
@@ -1019,7 +1127,24 @@ body {
   white-space: pre-wrap;
   font-size: 13px;
   line-height: 1.55;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 900px) {
+  .agentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .agentComposer {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .agentComposer textarea {
+    transition: none;
+  }
 }
 
 .settingsRow {

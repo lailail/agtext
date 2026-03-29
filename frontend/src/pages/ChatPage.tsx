@@ -11,6 +11,7 @@ import {
   type MessageItem,
 } from "../api";
 
+// 支持的 AI 模型提供商配置
 const providers = [
   { value: "", label: "默认" },
   { value: "openai", label: "OpenAI" },
@@ -21,24 +22,31 @@ const providers = [
 ] as const;
 
 export default function ChatPage() {
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<MessageItem[]>([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [provider, setProvider] = useState<string>("");
-  const [model, setModel] = useState<string>("");
+  // --- 状态管理 ---
+  const [conversations, setConversations] = useState<ConversationItem[]>([]); // 左侧会话列表
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null); // 当前选中的会话 ID
+  const [messages, setMessages] = useState<MessageItem[]>([]); // 当前会话的消息记录
+  const [input, setInput] = useState(""); // 输入框内容
+  const [busy, setBusy] = useState(false); // 请求状态锁，防止重复发送
+  const [error, setError] = useState<string | null>(null); // 错误信息展示
 
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseItem[]>([]);
-  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<string>("");
-  const [lastCitations, setLastCitations] = useState<Citation[] | null>(null);
+  // --- 模型与知识库配置 ---
+  const [provider, setProvider] = useState<string>(""); // 当前选中的模型供应商
+  const [model, setModel] = useState<string>(""); // 自定义模型名称
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBaseItem[]>([]); // 可用的知识库列表
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<string>(""); // 当前关联的知识库 ID
+  const [lastCitations, setLastCitations] = useState<Citation[] | null>(null); // 最近一次回答的引用源（RAG 证据）
 
+  // 性能优化：根据 ID 派生当前选中的会话对象，避免冗余查找
   const selectedConversation = useMemo(
     () => conversations.find((c) => c.id === selectedConversationId) ?? null,
     [conversations, selectedConversationId],
   );
 
+  /**
+   * 刷新并加载会话列表
+   * 逻辑：获取第一页会话，若当前未选中任何会话且列表不为空，则默认选中第一个
+   */
   async function refreshConversations() {
     const page = await listConversations(1, 50);
     setConversations(page.items);
@@ -47,10 +55,14 @@ export default function ChatPage() {
     }
   }
 
+  /**
+   * 加载指定会话的所有历史消息
+   */
   async function refreshMessages(conversationId: string) {
     setMessages(await listMessages(conversationId));
   }
 
+  // 初始化：组件挂载时加载会话列表和知识库选项
   useEffect(() => {
     refreshConversations().catch((e: unknown) => setError(String(e)));
     listKnowledgeBases(1, 100)
@@ -59,6 +71,7 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 监听：当切换会话 ID 时，重新获取该会话的消息
   useEffect(() => {
     if (!selectedConversationId) {
       setMessages([]);
@@ -67,33 +80,46 @@ export default function ChatPage() {
     refreshMessages(selectedConversationId).catch((e: unknown) => setError(String(e)));
   }, [selectedConversationId]);
 
+  /**
+   * 处理“新建会话”逻辑
+   */
   async function onNewConversation() {
     setError(null);
     const created = await createConversation();
-    setConversations((prev) => [created, ...prev]);
-    setSelectedConversationId(created.id);
+    setConversations((prev) => [created, ...prev]); // 将新会话插入列表顶部
+    setSelectedConversationId(created.id); // 立即切换到新会话
   }
 
+  /**
+   * 核心逻辑：发送消息
+   */
   async function onSend() {
     const text = input.trim();
     if (!text || busy) return;
+
     setError(null);
     setBusy(true);
-    setLastCitations(null);
+    setLastCitations(null); // 清除旧的引用展示
 
     try {
       const res = await chat({
         conversationId: selectedConversationId,
-        knowledgeBaseId: selectedKnowledgeBaseId || null,
+        knowledgeBaseId: selectedKnowledgeBaseId || null, // 若未选则传 null
         message: text,
         provider: provider || null,
         model: model || null,
       });
+
+      // 更新引用源（用于展示 AI 回答的参考文档）
       setLastCitations(res.citations ?? []);
-      setInput("");
+      setInput(""); // 清空输入框
+
+      // 如果是首条消息（之前没 ID），则同步后端生成的会话 ID
       if (!selectedConversationId) {
         setSelectedConversationId(res.conversationId);
       }
+
+      // 同步最新列表状态（如更新会话标题、时间戳等）
       await refreshConversations();
       await refreshMessages(res.conversationId);
     } catch (e: unknown) {
@@ -105,6 +131,7 @@ export default function ChatPage() {
 
   return (
     <section className="chat">
+      {/* --- 左侧边栏：历史会话管理 --- */}
       <div className="chatLeft">
         <div className="chatLeftHeader">
           <div className="chatTitle">会话</div>
@@ -128,7 +155,9 @@ export default function ChatPage() {
         </div>
       </div>
 
+      {/* --- 右侧：聊天主区域 --- */}
       <div className="chatMain">
+        {/* 工具栏：配置知识库、模型供应商等参数 */}
         <div className="chatMainHeader">
           <div className="chatMainTitle">{selectedConversation?.title || "聊天"}</div>
           <div className="chatControls">
@@ -158,16 +187,22 @@ export default function ChatPage() {
             </label>
             <label className="control">
               <span>模型</span>
-              <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="留空用默认" />
+              <input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="留空用默认"
+              />
             </label>
           </div>
         </div>
 
+        {/* 消息滚动区域 */}
         <div className="chatMessages">
           {messages.map((m) => (
             <div key={m.id} className={m.role === "user" ? "msg user" : "msg assistant"}>
               <div className="msgMeta">
                 <span className="msgRole">{m.role}</span>
+                {/* 仅在消息包含模型信息时显示，方便辨认多模型回复 */}
                 {m.provider || m.modelName ? (
                   <span className="msgModel">
                     {m.provider ?? ""} {m.modelName ?? ""}
@@ -180,6 +215,7 @@ export default function ChatPage() {
           {messages.length === 0 ? <div className="muted">开始对话吧。</div> : null}
         </div>
 
+        {/* 输入框区域 */}
         <div className="chatComposer">
           <input
             value={input}
@@ -195,6 +231,7 @@ export default function ChatPage() {
           </button>
         </div>
 
+        {/* 引用展示：当启用知识库（RAG）且后端返回相关片段时显示 */}
         {lastCitations && lastCitations.length > 0 ? (
           <div className="citations">
             <div className="citationsTitle">引用</div>
@@ -203,10 +240,11 @@ export default function ChatPage() {
                 <div key={`${c.documentId}:${c.chunkId}`} className="citationsItem">
                   <div className="citationsMeta">
                     <span className="citationsDoc">{c.documentTitle || c.documentId}</span>
-                    <span className="citationsScore">{c.score.toFixed(3)}</span>
+                    <span className="citationsScore">{c.score.toFixed(3)}</span>{" "}
+                    {/* 检索相关度分数 */}
                   </div>
                   <div className="citationsUri">{c.sourceUri || ""}</div>
-                  <div className="citationsExcerpt">{c.excerpt}</div>
+                  <div className="citationsExcerpt">{c.excerpt}</div> {/* 片段摘要 */}
                 </div>
               ))}
             </div>
@@ -218,4 +256,3 @@ export default function ChatPage() {
     </section>
   );
 }
-
